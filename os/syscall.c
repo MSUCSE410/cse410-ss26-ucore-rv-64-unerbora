@@ -56,9 +56,9 @@ uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd)
     //validate upper bits must be 0 lower bits cant all be 0
     if ((port & ~0x7) != 0) return -1;
     if ((port & 0x7) == 0) return -1;
-    // start must be aligned means multiple of 4096 cant get half page
+    //start must be aligned means multiple of 4096 cant get half page
     if (start % PGSIZE != 0) return -1;
-    // len < 1GB cant go larger than that
+    //len < 1GB cant go larger than that
     if (len > (1u << 30)) return -1;
 
     //page boundary round (same thing as above only works with full pages cant get half)
@@ -67,7 +67,7 @@ uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd)
     struct proc *p = curr_proc();
 
     for (uint64 va = start; va < start + len; va += PGSIZE) {
-        if (walkaddr(p->pagetable, va) != 0)
+        if (walkaddr(p->pagetable, va) != 0)//if find mpped
             return -1;
     }
 	//walk pages in req range, walkaddr 0 if unmpd -1 if mpd(fail)
@@ -113,6 +113,7 @@ uint64 sys_munmap(uint64 start, uint64 len)
     }
 
     //unmap all
+	//params: which procs pt we modify, start of va, num of pages, dofree=1 free phy mem
     uvmunmap(p->pagetable, start, len / PGSIZE, 1);
     return 0;
 }
