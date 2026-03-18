@@ -34,9 +34,7 @@ uint64 sys_sched_yield()
 
 uint64 sys_gettimeofday(TimeVal *val, int _tz)
 {
-	TimeVal *physical_val = (TimeVal *)useraddr(
-		curr_proc()->pagetable, (uint64)val
-	);
+	TimeVal *physical_val = (TimeVal *)useraddr(curr_proc()->pagetable, (uint64)val);
 	if (physical_val == 0)
 		return -1;
 
@@ -49,43 +47,42 @@ uint64 sys_gettimeofday(TimeVal *val, int _tz)
 // TODO: add support for mmap and munmap syscall.
 // hint: read through docstrings in vm.c. Watching CH4 video may also help.
 // Note the return value and PTE flags (especially U,X,W,R)
+//this solves the problem that what if the program needs more memory at runtime?
 uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd)
 {
-    // len == 0 is valid
+    // len 0 is valid
     if (len == 0) return 0;
 
-    // Validate port: upper bits must be 0, lower bits must not all be 0
+    //validate upper bits must be 0 lower bits cant all be 0
     if ((port & ~0x7) != 0) return -1;
     if ((port & 0x7) == 0) return -1;
-
-    // start must be algned
+    // start must be aligned means multiple of 4096 cant get half page
     if (start % PGSIZE != 0) return -1;
-
-    // len < 1GB
+    // len < 1GB cant go larger than that
     if (len > (1u << 30)) return -1;
 
-    //page boundary round
+    //page boundary round (same thing as above only works with full pages cant get half)
     len = PGROUNDUP(len);
 
     struct proc *p = curr_proc();
 
-    // Check no page in [start, start+len) is already mapped
     for (uint64 va = start; va < start + len; va += PGSIZE) {
         if (walkaddr(p->pagetable, va) != 0)
             return -1;
     }
+	//walk pages in req range, walkaddr 0 if unmpd -1 if mpd(fail)
 
-    // Build PTE permissions
-    int perm = PTE_U;
-    if (port & 1) perm |= PTE_R;
-    if (port & 2) perm |= PTE_W;
-    if (port & 4) perm |= PTE_X;
+    //pte mpng of va to pa and perm
+	int perm = PTE_U;//user
+    if (port & 1) perm |= PTE_R; //read
+    if (port & 2) perm |= PTE_W;//write
+    if (port & 4) perm |= PTE_X;//execute
 
-    // Allocate and map pages one by one
+    //mapping
     for (uint64 va = start; va < start + len; va += PGSIZE) {
-        void *pa = kalloc();
+        void *pa = kalloc(); //kalloc allocs one pge
         if (pa == 0) {
-            // Out of memory: unmap what we already mapped and fail
+            //cant allocated
             uvmunmap(p->pagetable, start, (va - start) / PGSIZE, 1);
             return -1;
         }
@@ -99,23 +96,23 @@ uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd)
     return 0;
 }
 
+//opposite of mmap, munmap. when we finish with a mem we free it
 uint64 sys_munmap(uint64 start, uint64 len)
 {
-    if (len == 0) return 0;
+    if (len == 0) return 0;//nothing to do
+    if (start % PGSIZE != 0) return -1;//start must be aligned cant do half page
 
-    if (start % PGSIZE != 0) return -1;
-
-    len = PGROUNDUP(len);
+    len = PGROUNDUP(len);//round up
 
     struct proc *p = curr_proc();
 
-    // Check every page in range is actually mapped — error if any isn't
+	//opposie of mmap if walkaddr rets 0 means unmapped cause err
     for (uint64 va = start; va < start + len; va += PGSIZE) {
         if (walkaddr(p->pagetable, va) == 0)
             return -1;
     }
 
-    // Unmap and free all pages
+    //unmap all
     uvmunmap(p->pagetable, start, len / PGSIZE, 1);
     return 0;
 }
@@ -124,13 +121,11 @@ uint64 sys_munmap(uint64 start, uint64 len)
 */
 uint64 sys_task_info(TaskInfo *ti)
 {
-	TaskInfo *physical_ti = (TaskInfo *)useraddr(
-		curr_proc()->pagetable, (uint64)ti
-	);
+	TaskInfo *physical_ti = (TaskInfo *)useraddr(curr_proc()->pagetable, (uint64)ti);
 	if (physical_ti == 0)
 		return -1;
 
-	struct proc *p = curr_proc();
+	struct proc *p = curr_proc(); //this holds kernel info about proc 
 	physical_ti->status = Running;
 	for (int i = 0; i < MAX_SYSCALL_NUM; i++) {
 		physical_ti->syscall_times[i] = p->syscall_times[i];
