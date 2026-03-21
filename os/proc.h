@@ -8,6 +8,7 @@
 #define NPROC (512)
 #define FD_BUFFER_SIZE (16)
 #define MAX_SYSCALL_NUM (500)
+#define BIG_STRIDE (1LL << 30)//stride cons (1 bn) overflow safe
 
 struct file;
 
@@ -60,6 +61,9 @@ struct proc {
 	struct file *files[FD_BUFFER_SIZE];
 	unsigned int syscall_times[MAX_SYSCALL_NUM]; 
 	uint64 start_time;
+	//track stride and priority
+	long long stride; // init 0
+    long long priority; // init 16
 };
 
 int cpuid();
@@ -76,6 +80,7 @@ void add_task(struct proc *);
 struct proc *pop_task();
 struct proc *allocproc();
 int fdalloc(struct file *);
+int spawn(char *name);
 // swtch.S
 void swtch(struct context *, struct context *);
 

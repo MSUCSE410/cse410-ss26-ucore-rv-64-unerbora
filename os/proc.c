@@ -46,20 +46,31 @@ int allocpid()
 	return PID++;
 }
 
+// returns which proc to run next
 struct proc *fetch_task()
 {
-	int index = pop_queue(&task_queue);
-	if (index < 0) {
-		debugf("No task to fetch\n");
-		return NULL;
-	}
-	debugf("fetch task %d(pid=%d) to task queue\n", index, pool[index].pid);
-	return pool + index;
+    struct proc *p;
+    struct proc *min_p = NULL; // track small stride
+    for (p = pool; p < &pool[NPROC]; p++) {
+        if (p->state == RUNNABLE) {
+            if (min_p == NULL || p->stride < min_p->stride)
+                min_p = p;
+        }
+    }
+    return min_p;
+	// 	int index = pop_queue(&task_queue);
+	// 	if (index < 0) {
+	// 		debugf("No task to fetch\n");
+	// 		return NULL;
+	// 	}
+	// 	debugf("fetch task %d(pid=%d) to task queue\n", index, pool[index].pid);
+	// 	return pool + index;
 }
 
+//old version pushed to a queue as seen. now it is a dead function
 void add_task(struct proc *p)
 {
-	push_queue(&task_queue, p - pool);
+	// 	push_queue(&task_queue, p - pool);
 	debugf("add task %d(pid=%d) to task queue\n", p - pool, p->pid);
 }
 
@@ -92,6 +103,8 @@ found:
 	p->context.sp = p->kstack + KSTACK_SIZE;
 	memset(p->syscall_times, 0, sizeof(p->syscall_times));
 	p->start_time = 0;
+	p->stride = 0; // init 0 
+	p->priority = 16; // init 16
 	return p;
 }
 
@@ -123,6 +136,7 @@ void scheduler()
 		}
 		tracef("swtich to proc %d", p - pool);
 		p->state = RUNNING;
+		p->stride += BIG_STRIDE / p->priority;
 		if (p->start_time == 0) {
     		p->start_time = get_cycle() * 1000 / CPU_FREQ;
 		}
@@ -204,6 +218,29 @@ int exec(char *name)
 	p->max_page = 0;
 	loader(id, p);
 	return 0;
+}
+//we take a string (name of prg)
+//ret either -1 fail or child pid
+int spawn(char *name) {
+    int id = get_id_by_name(name);
+    if (id < 0) {
+		return -1;
+	}
+    struct proc *np = allocproc();
+    if (np == 0) {
+		return -1;
+	}
+    struct proc *p = curr_proc();
+    np->parent = p;
+
+    if (loader(id, np) < 0) {
+        freeproc(np);
+        return -1;
+    }
+
+    np->state = RUNNABLE;
+    add_task(np);
+    return np->pid;
 }
 
 int wait(int pid, int *code)

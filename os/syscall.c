@@ -177,15 +177,21 @@ uint64 sys_wait(int pid, uint64 va)
 	return wait(pid, code);
 }
 
-uint64 sys_spawn(uint64 va)
-{
-	// TODO: your job is to complete the sys call
-	return -1;
+uint64 sys_spawn(uint64 va) {
+    struct proc *p = curr_proc();
+    char name[200];
+    copyinstr(p->pagetable, name, va, 200);
+    return spawn(name);
 }
 
-uint64 sys_set_priority(long long prio){
-    // TODO: your job is to complete the sys call
-    return -1;
+uint64 sys_set_priority(long long prio)
+{
+    if (prio < 2){
+		return -1;
+	} 
+    struct proc *p = curr_proc();
+    p->priority = prio;
+    return prio;
 }
 
 
@@ -243,6 +249,9 @@ void syscall()
     	break;
 	case SYS_munmap:
     	ret = sys_munmap(args[0], args[1]);
+    	break;
+	case SYS_setpriority:
+    	ret = sys_set_priority(args[0]);
     	break;
 	default:
 		ret = -1;
