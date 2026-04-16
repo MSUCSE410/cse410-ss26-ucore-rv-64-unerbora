@@ -178,12 +178,18 @@ uint64 sys_wait(int pid, uint64 va)
 }
 
 uint64 sys_spawn(uint64 va) {
+	//userproc call -> "string" whcih live in user mem
+	//kernel can't dereference.
     struct proc *p = curr_proc();
     char name[200];
     copyinstr(p->pagetable, name, va, 200);
+	// takes the va in user addr, translates it to pa, copies it to name[200]
+	// then we pass name into spawn. 
     return spawn(name);
 }
 
+// without this the priority would be stuck at 16.
+// assign prio to procs priority var.
 uint64 sys_set_priority(long long prio)
 {
     if (prio < 2){

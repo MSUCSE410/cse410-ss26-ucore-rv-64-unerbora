@@ -1,3 +1,20 @@
+// proj 3 expl
+// (proc.h, proc.c, syscall.c)
+// b4 procs run one after another --> bad w no mgmt
+// we turn it -->multiproc os
+// we already had fork, exec --> fork copies all mem, exec - child throws away the clone
+// spawn combines two: f,e
+// alloc fresh proc n load prog into it (x touch parent mem)
+// ---------------------------
+// resrc mgmt - with spawn he have many procs run concurrently.
+// when multiple procs run, os needs to manage rsrc.
+// init, sched used fifo not useful. 
+// 
+// if not policy, some procs could starve.
+// sched algo --> proc with p10 gets 2x cpu time to proc w p5.
+// called stride sched. 
+
+
 #ifndef PROC_H
 #define PROC_H
 
@@ -8,7 +25,8 @@
 #define NPROC (512)
 #define FD_BUFFER_SIZE (16)
 #define MAX_SYSCALL_NUM (500)
-#define BIG_STRIDE (1LL << 30)//stride cons (1 bn) overflow safe
+#define BIG_STRIDE (1LL << 30)//stride cons (1 biln) overflow safety added
+// 
 
 struct file;
 

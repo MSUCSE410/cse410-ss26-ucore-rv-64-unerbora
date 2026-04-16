@@ -47,17 +47,22 @@ int allocpid()
 }
 
 // returns which proc to run next
+// we changed this from the commented version to our version that supports stride sched
 struct proc *fetch_task()
 {
-    struct proc *p;
-    struct proc *min_p = NULL; // track small stride
+    struct proc *p; // get proc
+    struct proc *min_p = NULL; // track proc with smallest stride
     for (p = pool; p < &pool[NPROC]; p++) {
+		// here scan every proc in the pool[]
         if (p->state == RUNNABLE) {
+			// only consider procs that can run (eligible to be execd)
             if (min_p == NULL || p->stride < min_p->stride)
+				// two condts to update the min_p 
+				// if current procs stride is smaller or minp is null
                 min_p = p;
         }
     }
-    return min_p;
+    return min_p; // return the proc to run
 	// 	int index = pop_queue(&task_queue);
 	// 	if (index < 0) {
 	// 		debugf("No task to fetch\n");
@@ -67,10 +72,13 @@ struct proc *fetch_task()
 	// 	return pool + index;
 }
 
-//old version pushed to a queue as seen. now it is a dead function
+//PROJ3: old version pushed to a queue as seen. now it is a dead function
+// now fetchtask scans the pool directly, (runnable)
+// the queue is not needed anymore
 void add_task(struct proc *p)
 {
 	// 	push_queue(&task_queue, p - pool);
+	//since now fetch task does scan the pool.
 	debugf("add task %d(pid=%d) to task queue\n", p - pool, p->pid);
 }
 
@@ -103,8 +111,9 @@ found:
 	p->context.sp = p->kstack + KSTACK_SIZE;
 	memset(p->syscall_times, 0, sizeof(p->syscall_times));
 	p->start_time = 0;
-	p->stride = 0; // init 0 
-	p->priority = 16; // init 16
+	
+	p->stride = 0; // init 0 (position)
+	p->priority = 16; // init 16 (asked in pdf)
 	return p;
 }
 
@@ -136,7 +145,7 @@ void scheduler()
 		}
 		tracef("swtich to proc %d", p - pool);
 		p->state = RUNNING;
-		p->stride += BIG_STRIDE / p->priority;
+		p->stride += BIG_STRIDE / p->priority; // update the stride if execd
 		if (p->start_time == 0) {
     		p->start_time = get_cycle() * 1000 / CPU_FREQ;
 		}
@@ -222,25 +231,29 @@ int exec(char *name)
 //we take a string (name of prg)
 //ret either -1 fail or child pid
 int spawn(char *name) {
-    int id = get_id_by_name(name);
+    int id = get_id_by_name(name); //return -1 if name not match any prog (invalid filename err prevent)
     if (id < 0) {
 		return -1;
 	}
-    struct proc *np = allocproc();
+
+    struct proc *np = allocproc(); // allocate a proc
     if (np == 0) {
-		return -1;
+		return -1;//if the pool is full allocproc rets 0
 	}
-    struct proc *p = curr_proc();
-    np->parent = p;
+    struct proc *p = curr_proc();// rets current proc
+    np->parent = p; //store new proc we alloced as child of current proc
 
     if (loader(id, np) < 0) {
+		// loader sets up new procs address space. 
+		// if loader fails we clear the proc return fail.
         freeproc(np);
         return -1;
     }
 
-    np->state = RUNNABLE;
+    np->state = RUNNABLE; // setting new proc visible to sched.
+	// now our proc is eligible to be assigned cpu time.
     add_task(np);
-    return np->pid;
+    return np->pid; // return the pid of this neew proc.
 }
 
 int wait(int pid, int *code)
