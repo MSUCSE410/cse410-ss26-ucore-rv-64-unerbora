@@ -238,7 +238,7 @@ int spawn(char *name) {
 
     struct proc *np = allocproc(); // allocate a proc
     if (np == 0) {
-		return -1;//if the pool is full allocproc rets 0
+		return -1;//if the pool[] is full allocproc rets 0
 	}
     struct proc *p = curr_proc();// rets current proc
     np->parent = p; //store new proc we alloced as child of current proc

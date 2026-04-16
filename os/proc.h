@@ -4,7 +4,7 @@
 // we turn it -->multiproc os
 // we already had fork, exec --> fork copies all mem, exec - child throws away the clone
 // spawn combines two: f,e
-// alloc fresh proc n load prog into it (x touch parent mem)
+// alloc fresh proc n load prog into it (witho touch parent mem)
 // ---------------------------
 // resrc mgmt - with spawn he have many procs run concurrently.
 // when multiple procs run, os needs to manage rsrc.
