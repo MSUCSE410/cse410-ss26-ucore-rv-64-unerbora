@@ -102,26 +102,36 @@ static struct inode *iget(uint dev, uint inum);
 // Allocate an inode on device dev.
 // Mark it as allocated by  giving it type `type`.
 // Returns an allocated and referenced inode.
+
+//LAB4 CHANGES
 struct inode *ialloc(uint dev, short type)
 {
-	int inum;
-	struct buf *bp;
-	struct dinode *dip;
+    int inum;
+    struct buf *bp;
+    struct dinode *dip;
 
-	for (inum = 1; inum < sb.ninodes; inum++) {
-		bp = bread(dev, IBLOCK(inum, sb));
-		dip = (struct dinode *)bp->data + inum % IPB;
-		if (dip->type == 0) { // a free inode
-			memset(dip, 0, sizeof(*dip));
-			dip->type = type;
-			bwrite(bp);
-			brelse(bp);
-			return iget(dev, inum);
-		}
-		brelse(bp);
-	}
-	panic("ialloc: no inodes");
-	return 0;
+    for (inum = 1; inum < sb.ninodes; inum++) {
+        bp = bread(dev, IBLOCK(inum, sb));
+        dip = (struct dinode *)bp->data + inum % IPB;
+        if (dip->type == 0) { // a free inode
+            memset(dip, 0, sizeof(*dip));
+            dip->type = type;
+            dip->nlink = 1;
+			//when a p creates new file, assign nlink to 1
+            bwrite(bp);
+            brelse(bp);
+            
+            struct inode *ip = iget(dev, inum); //here we get ram slot
+            ip->type = type;
+            ip->nlink = 1; //init the nlink to 1 in ram (this was a bugfix)
+            ip->size = 0;
+            ip->valid = 1;
+            return ip;
+        }
+        brelse(bp);
+    }
+    panic("ialloc: no inodes");
+    return 0;
 }
 
 // Copy a modified in-memory inode to disk.
@@ -136,7 +146,7 @@ void iupdate(struct inode *ip)
 	dip = (struct dinode *)bp->data + ip->inum % IPB;
 	dip->type = ip->type;
 	dip->size = ip->size;
-	// LAB4: you may need to update link count here
+	dip->nlink = ip->nlink; // update in iupdate which moves data from ram -> disk
 	memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
 	bwrite(bp);
 	brelse(bp);
@@ -189,7 +199,7 @@ void ivalid(struct inode *ip)
 		dip = (struct dinode *)bp->data + ip->inum % IPB;
 		ip->type = dip->type;
 		ip->size = dip->size;
-		// LAB4: You may need to get lint count here
+		ip->nlink = dip->nlink; //again nlink update (ivalid is disk-->ram)
 		memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
 		brelse(bp);
 		ip->valid = 1;
@@ -207,15 +217,16 @@ void ivalid(struct inode *ip)
 // case it has to free the inode.
 void iput(struct inode *ip)
 {
-	// LAB4: Unmark the condition and change link count variable name (nlink) if needed
-	if (ip->ref == 1 && ip->valid && 0 /*&& ip->nlink == 0*/) {
-		// inode has no links and no other references: truncate and free.
-		itrunc(ip);
-		ip->type = 0;
-		iupdate(ip);
-		ip->valid = 0;
-	}
-	ip->ref--;
+    // Make sure the 0 is completely gone!
+	//here we uncommented ip->link==0 which is ess to deletion of file.
+    if (ip->ref == 1 && ip->valid && ip->nlink == 0) {
+        // inode has no links and no other references: truncate and free.
+        itrunc(ip);
+        ip->type = 0;
+        iupdate(ip);
+        ip->valid = 0;
+    }
+    ip->ref--;
 }
 
 // Inode content
@@ -370,7 +381,7 @@ struct inode *dirlookup(struct inode *dp, char *name, uint *poff)
 		if (de.inum == 0)
 			continue;
 		if (strncmp(name, de.name, DIRSIZ) == 0) {
-			// entry matches path element
+			
 			if (poff)
 				*poff = off;
 			inum = de.inum;
@@ -428,8 +439,37 @@ int dirlink(struct inode *dp, char *name, uint inum)
 	return 0;
 }
 
-// LAB4: You may want to add dirunlink here
+// Remove a directory entry from the directory dp.
+//when want to delete hardlink --> check the spec name tag and deletes
+int dirunlink(struct inode *dp, char *name)
+// dp is the inode of folder we look, name is the tag we want to x
+{
+    uint off;
+    struct dirent de;
 
+    if (dp->type != T_DIR)
+        return -1;
+
+	//scan the directory
+    for (off = 0; off < dp->size; off += sizeof(de)) {
+        if (readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+            panic("dirunlink read");
+        if (de.inum == 0)
+            continue;
+        
+        //when we find the matching file name
+        if (strncmp(name, de.name, DIRSIZ) == 0) {
+            de.inum = 0; //clear the inode number
+            memset(de.name, 0, DIRSIZ); //wipe the name
+            
+            //write the empty entry back to the disk
+            if (writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+                panic("dirunlink write");
+            return 0;
+        }
+    }
+    return -1; // File not found in directory
+}
 //Return the inode of the root directory
 struct inode *root_dir()
 {

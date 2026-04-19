@@ -4,6 +4,7 @@
 #include "trap.h"
 #include "vm.h"
 #include "queue.h"
+#include "timer.h"
 
 struct proc pool[NPROC];
 __attribute__((aligned(16))) char kstack[NPROC][PAGE_SIZE];
@@ -52,20 +53,20 @@ int allocpid()
 
 struct proc *fetch_task()
 {
-	int index = pop_queue(&task_queue);
-	if (index < 0) {
-		debugf("No task to fetch\n");
-		return NULL;
-	}
-	debugf("fetch task %d(pid=%d) from task queue\n", index,
-	       pool[index].pid);
-	return pool + index;
+    struct proc *p; 
+    struct proc *min_p = NULL; 
+    for (p = pool; p < &pool[NPROC]; p++) {
+        if (p->state == RUNNABLE) {
+            if (min_p == NULL || p->stride < min_p->stride)
+                min_p = p;
+        }
+    }
+    return min_p; 
 }
 
 void add_task(struct proc *p)
 {
-	push_queue(&task_queue, p - pool);
-	debugf("add task %d(pid=%d) to task queue\n", p - pool, p->pid);
+    debugf("add task %d(pid=%d) to task queue\n", p - pool, p->pid);
 }
 
 // Look in the process table for an UNUSED proc.
@@ -96,6 +97,10 @@ found:
 	memset((void *)p->files, 0, sizeof(struct file *) * FD_BUFFER_SIZE);
 	p->context.ra = (uint64)usertrapret;
 	p->context.sp = p->kstack + KSTACK_SIZE;
+	memset(p->syscall_times, 0, sizeof(p->syscall_times));
+    p->start_time = 0;
+    p->stride = 0; 
+    p->priority = 16; 
 	return p;
 }
 
@@ -138,8 +143,13 @@ void scheduler()
 		}
 		tracef("swtich to proc %d", p - pool);
 		p->state = RUNNING;
-		current_proc = p;
-		swtch(&idle.context, &p->context);
+        p->stride += BIG_STRIDE / p->priority; 
+        if (p->start_time == 0) {
+            p->start_time = get_cycle() * 1000 / CPU_FREQ;
+        }
+        current_proc = p;
+        swtch(&idle.context, &p->context);
+
 	}
 }
 
@@ -180,7 +190,7 @@ void freeproc(struct proc *p)
 	if (p->pagetable)
 		freepagetable(p->pagetable, p->max_page);
 	p->pagetable = 0;
-	for (int i = 0; i > FD_BUFFER_SIZE; i++) {
+	for (int i = 0; i < FD_BUFFER_SIZE; i++) {
 		if (p->files[i] != NULL) {
 			fileclose(p->files[i]);
 		}
@@ -270,7 +280,40 @@ int exec(char *path, char **argv)
 	iput(ip);
 	return push_argv(p, argv);
 }
+int spawn(char *path) {
+	
+    struct inode *ip;
+    if ((ip = namei(path)) == 0) {
+        return -1;
+    }
+    struct proc *np = allocproc(); 
+    if (np == 0) {
+        return -1;
+    }
+    struct proc *p = curr_proc(); 
+    np->parent = p; 
 
+    for (int i = 0; i < FD_BUFFER_SIZE; i++) {
+        if (p->files[i] != NULL) {
+            p->files[i]->ref++;
+            np->files[i] = p->files[i];
+        }
+    }
+    if (bin_loader(ip, np) < 0) {
+        freeproc(np);
+        iput(ip);
+        return -1;
+    }
+    iput(ip);
+    char *argv[2];
+    argv[0] = path;
+    argv[1] = NULL;
+    np->trapframe->a0 = push_argv(np, argv);
+
+    np->state = RUNNABLE; 
+    add_task(np);
+    return np->pid; 
+}
 int wait(int pid, int *code)
 {
 	struct proc *np;

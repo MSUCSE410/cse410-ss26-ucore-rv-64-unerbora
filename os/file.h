@@ -10,14 +10,15 @@
 
 // in-memory copy of an inode,it can be used to quickly locate file entities on disk
 struct inode {
-	uint dev; // Device number
-	uint inum; // Inode number
-	int ref; // Reference count
-	int valid; // inode has been read from disk?
-	short type; // copy of disk inode
-	uint size;
-	uint addrs[NDIRECT + 1];
-	// LAB4: You may need to add link count here
+    uint dev;           // Device number
+    uint inum;          // Inode number
+    int ref;            // Reference count
+    int valid;          // inode has been read from disk?
+    short type;         // copy of disk inode
+    uint size;
+    uint addrs[NDIRECT + 1];
+	// LAB4: Added link count
+    short nlink;
 };
 
 // Defines a file in memory that provides information about the current use of the file and the corresponding inode location

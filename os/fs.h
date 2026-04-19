@@ -1,3 +1,13 @@
+// proj 4 explanations
+// before we had simple view of files --> one file = one name
+// for ex -> if had hi.txt os creates a hard block of data on hard drive (inode) ties it directly (if delete delete)
+// p4 intros hard links
+// actual file is in inode, filename is directory entry
+// bcs they diff we can have multi filename --> file(inode)  (called hard link) (they share exact same data)
+// to keep track --> rfrnc trck ....> every inode has nlink(inode ctr) when inode born == 1
+// everytime syslinkat nlink+=1, unlinkat nlink-=1 --> now os only deletes when nlink=0
+
+
 #ifndef __FS_H__
 #define __FS_H__
 
@@ -43,13 +53,13 @@ struct superblock {
 
 // On-disk inode structure
 struct dinode {
-	short type; // File type
-	short pad[3];
-	// LAB4: you can reduce size of pad array and add link count below,
-	//       or you can just regard a pad as link count.
-	//       But keep in mind that you'd better keep sizeof(dinode) unchanged
-	uint size; // Size of file (bytes)
-	uint addrs[NDIRECT + 1]; // Data block addresses
+    short type;     // File type
+	// LAB4: Link count (stolen from pad)
+    short nlink;  
+	  
+    short pad[2];   
+    uint size;      // Size of file (bytes)
+    uint addrs[NDIRECT + 1]; // Data block addresses
 };
 
 // Inodes per block.
@@ -92,4 +102,5 @@ int readi(struct inode *, int, uint64, uint, uint);
 int writei(struct inode *, int, uint64, uint, uint);
 void itrunc(struct inode *);
 int dirls(struct inode *);
+int dirunlink(struct inode *, char *);
 #endif //!__FS_H__
