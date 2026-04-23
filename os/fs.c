@@ -8,6 +8,7 @@
 // This file contains the low-level file system manipulation
 // routines.  The (higher-level) system call implementations
 // are in sysfile.c.
+// ialloc, iupdate, ivalid, iput, dirunlink
 
 #include "fs.h"
 #include "bio.h"
