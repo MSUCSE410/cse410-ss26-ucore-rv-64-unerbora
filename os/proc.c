@@ -1,3 +1,4 @@
+//allocproc
 #include "proc.h"
 #include "defs.h"
 #include "loader.h"
@@ -143,7 +144,19 @@ found:
 	p->next_semaphore_id = 0;
 	p->next_condvar_id = 0;
 	// LAB5: (1) you may initialize your new proc variables here
-	return p;
+    p->deadlock_detect_enabled = 0; //default disable
+    
+    //clear the tracking matrices to 0
+	//clearing the ledger
+    memset(p->mutex_available, 0, sizeof(p->mutex_available));
+    memset(p->mutex_allocation, 0, sizeof(p->mutex_allocation));
+    memset(p->mutex_request, 0, sizeof(p->mutex_request));
+    
+    memset(p->sem_available, 0, sizeof(p->sem_available));
+    memset(p->sem_allocation, 0, sizeof(p->sem_allocation));
+    memset(p->sem_request, 0, sizeof(p->sem_request));
+    
+    return p;
 }
 
 inline uint64 get_thread_trapframe_va(int tid)

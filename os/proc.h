@@ -1,3 +1,12 @@
+// proj5 purpose
+// when we have a large high-performance computing system
+// we have a lot threads run simul
+// to prevent data corrupt, these threads use mutexes to lock shared resources.
+// we built a ref that before any thread waits for a lock, OS pauses and runs a simul.
+// if we find an inf loop OS rejects the lock req. Keeps the sys alive
+
+
+
 #ifndef PROC_H
 #define PROC_H
 
@@ -63,9 +72,18 @@ struct proc {
 	struct mutex mutex_pool[LOCK_POOL_SIZE];
 	struct semaphore semaphore_pool[LOCK_POOL_SIZE];
 	struct condvar condvar_pool[LOCK_POOL_SIZE];
-	// LAB5: (1) Define your variables for deadlock detect here.
-	//			 You may need a flag to record if detection enabled,
-	//       and some arrays for detection algorithm.
+	//LAB5
+	int deadlock_detect_enabled; //flag to record if detec enable
+    
+    // arr for mutex detect
+    int mutex_available[LOCK_POOL_SIZE]; // 8 slots --> if mutex_av[3] =1, means mutex 3 is free to grab
+    int mutex_allocation[NTHREAD][LOCK_POOL_SIZE];//2d matr rows:thread, col:lock, [2][5]means thread 2 sleeps, asks for mut 5
+    int mutex_request[NTHREAD][LOCK_POOL_SIZE];// 
+
+    // arrays for semaphore detect (exact cponcept just for semaphores.)
+    int sem_available[LOCK_POOL_SIZE];
+    int sem_allocation[NTHREAD][LOCK_POOL_SIZE];
+    int sem_request[NTHREAD][LOCK_POOL_SIZE];
 };
 
 int cpuid();
